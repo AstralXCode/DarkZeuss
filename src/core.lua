@@ -151,37 +151,39 @@ PlayerSection:Slider({
 })
 
 -- Fly
-local flyConn, flySpeed = nil, 50
+local flyConn, flyBv, flyGyro, flySpeed = nil, nil, nil, 50
 
 PlayerSection:Toggle({
     Title = "Fly",
-    Desc = "Mode terbang (diam kalau tidak disentuh)",
+    Desc = "Mode terbang",
     Callback = function(enabled)
         if flyConn then flyConn:Disconnect() flyConn = nil end
+        if flyBv then flyBv:Destroy() flyBv = nil end
+        if flyGyro then flyGyro:Destroy() flyGyro = nil end
         local char = LP.Character
         if not char then return end
         local hrp = char:FindFirstChild("HumanoidRootPart")
-        if not hrp then return end
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if not hrp or not hum then return end
         if enabled then
+            hrp.Anchored = true
             flyConn = game:GetService("RunService").Heartbeat:Connect(function()
                 local c = LP.Character
                 if not c then return end
                 local r = c:FindFirstChild("HumanoidRootPart")
                 local h = c:FindFirstChildOfClass("Humanoid")
                 if not r or not h then return end
-                h.PlatformStand = true
-                local lv = workspace.CurrentCamera.CFrame.LookVector
-                local touches = UIS:GetTouchInputs()
-                local moving = #touches > 0
-                if moving then
-                    r.Velocity = Vector3.new(lv.X * flySpeed, lv.Y * flySpeed, lv.Z * flySpeed)
-                else
-                    r.Velocity = Vector3.new(0, 0, 0)
-                end
+                local cf = workspace.CurrentCamera.CFrame
+                local md = h.MoveDirection
+                local lv = cf.LookVector
+                local forward = Vector3.new(lv.X, 0, lv.Z).Unit
+                local right = cf.RightVector
+                local move = (right * md.X + forward * -md.Z) * flySpeed + Vector3.new(0, lv.Y * flySpeed, 0)
+                r.CFrame = r.CFrame + move * 0.03
+                r.CFrame = CFrame.new(r.Position, r.Position + Vector3.new(lv.X, 0, lv.Z))
             end)
         else
-            local h = char:FindFirstChildOfClass("Humanoid")
-            if h then h.PlatformStand = false end
+            hrp.Anchored = false
         end
     end,
 })
@@ -198,44 +200,38 @@ PlayerSection:Slider({
     Callback = function(value) flySpeed = value end,
 })
 
--- Combat
+-- Combat tab (raw Instance UI karena WindUI Button/Input pake icon system yg mungkin gagal di Delta)
+local CombatTab = Window:Tab({
+    Title = "Combat",
+    Icon = "lucide:sword",
+})
+
 local selectedTarget
-local killDropdown
 
-local function getPlayerList()
-    local names = {}
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LP then table.insert(names, p.Name) end
-    end
-    return names
-end
-
-killDropdown = PlayerSection:Dropdown({
-    Title = "Target",
-    Desc = "Pilih pemain target",
-    Values = getPlayerList(),
+local ok1, inputEl = pcall(CombatTab.Input, CombatTab, {
+    Title = "Target Name",
+    Desc = "Ketik nama pemain target",
+    Placeholder = "username",
     Callback = function(v)
         selectedTarget = Players:FindFirstChild(v)
     end,
 })
 
-local function refreshPlayerList()
-    if killDropdown and killDropdown.Refresh then
-        killDropdown:Refresh(getPlayerList())
-    end
+if not ok1 then
+    -- Fallback: Input gagal, coba pake Paragraph + instruksi manual
+    pcall(CombatTab.Paragraph, CombatTab, {
+        Title = "Target Name",
+        Desc = "Ketik manual di chat: /target <nama>",
+    })
 end
 
-Players.PlayerAdded:Connect(refreshPlayerList)
-Players.PlayerRemoved:Connect(refreshPlayerList)
-
-PlayerSection:Button({
+local ok2, btn1 = pcall(CombatTab.Button, CombatTab, {
     Title = "Kill Player",
     Desc = "Serang target via RemoteEvent/Function spam",
-    Icon = nil,
     Callback = function()
         local target = selectedTarget
         if not target then
-            WindUI:Notify({Title = "DarkZeuss", Content = "Pilih target dulu!", Duration = 2})
+            WindUI:Notify({Title = "DarkZeuss", Content = "Isi nama target dulu!", Duration = 2})
             return
         end
         local char = target.Character
@@ -259,10 +255,9 @@ PlayerSection:Button({
     end,
 })
 
-PlayerSection:Button({
+local ok3, btn2 = pcall(CombatTab.Button, CombatTab, {
     Title = "Kill All",
     Desc = "Serang SEMUA pemain",
-    Icon = nil,
     Callback = function()
         for _, p in ipairs(Players:GetPlayers()) do
             if p ~= LP then
@@ -292,6 +287,115 @@ PlayerSection:Button({
         WindUI:Notify({Title = "DarkZeuss", Content = "Kill All executed!", Duration = 2})
     end,
 })
+
+-- Kalo Button gagal pake Icon, fallback ke raw Instance
+if not ok2 or not ok3 then
+    local sg = Instance.new("ScreenGui", game:GetService("CoreGui"))
+    sg.Name = "DarkZeussCombat"
+    sg.ResetOnSpawn = false
+    local frame = Instance.new("Frame", sg)
+    frame.Size = UDim2.new(0, 200, 0, 120)
+    frame.Position = UDim2.new(0.5, -100, 0.65, -60)
+    frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    frame.BackgroundTransparency = 0.2
+    frame.BorderSizePixel = 0
+    
+    local uic = Instance.new("UICorner", frame)
+    uic.CornerRadius = UDim.new(0, 8)
+    
+    local targetBox = Instance.new("TextBox", frame)
+    targetBox.Size = UDim2.new(1, -20, 0, 30)
+    targetBox.Position = UDim2.new(0, 10, 0, 8)
+    targetBox.PlaceholderText = "Target username"
+    targetBox.Text = ""
+    targetBox.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    targetBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    targetBox.BorderSizePixel = 0
+    
+    local uic2 = Instance.new("UICorner", targetBox)
+    uic2.CornerRadius = UDim.new(0, 6)
+    
+    local killBtn = Instance.new("TextButton", frame)
+    killBtn.Size = UDim2.new(0.5, -12, 0, 34)
+    killBtn.Position = UDim2.new(0, 10, 0, 46)
+    killBtn.Text = "Kill"
+    killBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    killBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    killBtn.BorderSizePixel = 0
+    killBtn.Font = Enum.Font.GothamBold
+    killBtn.TextSize = 14
+    
+    local uic3 = Instance.new("UICorner", killBtn)
+    uic3.CornerRadius = UDim.new(0, 6)
+    
+    local killAllBtn = Instance.new("TextButton", frame)
+    killAllBtn.Size = UDim2.new(0.5, -12, 0, 34)
+    killAllBtn.Position = UDim2.new(0.5, 2, 0, 46)
+    killAllBtn.Text = "Kill All"
+    killAllBtn.BackgroundColor3 = Color3.fromRGB(180, 30, 30)
+    killAllBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    killAllBtn.BorderSizePixel = 0
+    killAllBtn.Font = Enum.Font.GothamBold
+    killAllBtn.TextSize = 14
+    
+    local uic4 = Instance.new("UICorner", killAllBtn)
+    uic4.CornerRadius = UDim.new(0, 6)
+    
+    killBtn.MouseButton1Click:Connect(function()
+        selectedTarget = Players:FindFirstChild(targetBox.Text)
+        if not selectedTarget then
+            WindUI:Notify({Title = "DarkZeuss", Content = "Player tidak ditemukan!", Duration = 2})
+            return
+        end
+        local char = selectedTarget.Character
+        if char then
+            char:BreakJoints()
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum then hum.Health = 0 end
+        end
+        task.spawn(function()
+            for _, v in ipairs(game:GetDescendants()) do
+                if v:IsA("RemoteEvent") then
+                    pcall(v.FireServer, v, selectedTarget, selectedTarget.Character, 9999)
+                    pcall(v.FireServer, v, {Target = selectedTarget, Damage = 9999})
+                    pcall(v.FireServer, v, selectedTarget.Name, 9999)
+                elseif v:IsA("RemoteFunction") then
+                    pcall(v.InvokeServer, v, selectedTarget, selectedTarget.Character, 9999)
+                end
+            end
+        end)
+        WindUI:Notify({Title = "DarkZeuss", Content = "Killed " .. selectedTarget.Name, Duration = 2})
+    end)
+    
+    killAllBtn.MouseButton1Click:Connect(function()
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LP then
+                local char = p.Character
+                if char then
+                    char:BreakJoints()
+                    local hum = char:FindFirstChildOfClass("Humanoid")
+                    if hum then hum.Health = 0 end
+                end
+            end
+        end
+        task.spawn(function()
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p ~= LP then
+                    for _, v in ipairs(game:GetDescendants()) do
+                        if v:IsA("RemoteEvent") then
+                            pcall(v.FireServer, v, p, p.Character, 9999)
+                            pcall(v.FireServer, v, {Target = p, Damage = 9999})
+                            pcall(v.FireServer, v, p.Name, 9999)
+                        elseif v:IsA("RemoteFunction") then
+                            pcall(v.InvokeServer, v, p, p.Character, 9999)
+                        end
+                    end
+                end
+            end
+        end)
+        WindUI:Notify({Title = "DarkZeuss", Content = "Kill All done!", Duration = 2})
+    end)
+end
 
 WindUI:Notify({
     Title = "DarkZeuss",
