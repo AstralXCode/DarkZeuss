@@ -199,10 +199,18 @@ local CombatSection = MainTab:Section({
 
 local selectedTarget
 
-CombatSection:PlayerDropdown({
+local playerNames = {}
+for _, p in ipairs(Players:GetPlayers()) do
+    if p ~= LP then table.insert(playerNames, p.Name) end
+end
+
+CombatSection:Dropdown({
     Title = "Target",
     Desc = "Pilih pemain target",
-    Callback = function(v) selectedTarget = v end,
+    Values = playerNames,
+    Callback = function(v)
+        selectedTarget = Players:FindFirstChild(v)
+    end,
 })
 
 CombatSection:Button({
