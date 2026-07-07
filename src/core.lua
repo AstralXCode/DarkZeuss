@@ -11,6 +11,7 @@ end
 
 local Players = game:GetService("Players")
 local LP = Players.LocalPlayer
+local UIS = game:GetService("UserInputService")
 
 local deviceModel = loadstring(game:HttpGet("https://raw.githubusercontent.com/AstralXCode/DarkZeuss/main/src/device.lua"))() or "Android"
 
@@ -154,7 +155,7 @@ local flyConn, flySpeed = nil, 50
 
 PlayerSection:Toggle({
     Title = "Fly",
-    Desc = "Mode terbang (arah kamera)",
+    Desc = "Mode terbang (diam kalau tidak disentuh)",
     Callback = function(enabled)
         if flyConn then flyConn:Disconnect() flyConn = nil end
         local char = LP.Character
@@ -170,7 +171,13 @@ PlayerSection:Toggle({
                 if not r or not h then return end
                 h.PlatformStand = true
                 local lv = workspace.CurrentCamera.CFrame.LookVector
-                r.Velocity = Vector3.new(lv.X * flySpeed, lv.Y * flySpeed, lv.Z * flySpeed)
+                local touches = UIS:GetTouchInputs()
+                local moving = #touches > 0
+                if moving then
+                    r.Velocity = Vector3.new(lv.X * flySpeed, lv.Y * flySpeed, lv.Z * flySpeed)
+                else
+                    r.Velocity = Vector3.new(0, 0, 0)
+                end
             end)
         else
             local h = char:FindFirstChildOfClass("Humanoid")
@@ -224,6 +231,7 @@ Players.PlayerRemoved:Connect(refreshPlayerList)
 PlayerSection:Button({
     Title = "Kill Player",
     Desc = "Serang target via RemoteEvent/Function spam",
+    Icon = nil,
     Callback = function()
         local target = selectedTarget
         if not target then
@@ -254,6 +262,7 @@ PlayerSection:Button({
 PlayerSection:Button({
     Title = "Kill All",
     Desc = "Serang SEMUA pemain",
+    Icon = nil,
     Callback = function()
         for _, p in ipairs(Players:GetPlayers()) do
             if p ~= LP then
