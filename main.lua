@@ -1,4 +1,7 @@
--- DarkZeuss Hub v1.0 - WindUI
+-- DarkZeuss Hub v1.0
+-- GitHub: https://github.com/AstralXCode/DarkZeuss
+-- Load: loadstring(game:HttpGet("https://raw.githubusercontent.com/AstralXCode/DarkZeuss/main/main.lua"))()
+
 local okWind, WindUI = pcall(function()
     return loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
 end)
