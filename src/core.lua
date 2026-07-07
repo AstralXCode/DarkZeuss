@@ -191,31 +191,39 @@ PlayerSection:Slider({
     Callback = function(value) flySpeed = value end,
 })
 
--- Kill
-local CombatSection = MainTab:Section({
-    Title = "Combat",
-    Opened = true,
-})
-
+-- Combat
 local selectedTarget
+local killDropdown
 
-local playerNames = {}
-for _, p in ipairs(Players:GetPlayers()) do
-    if p ~= LP then table.insert(playerNames, p.Name) end
+local function getPlayerList()
+    local names = {}
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LP then table.insert(names, p.Name) end
+    end
+    return names
 end
 
-CombatSection:Dropdown({
+killDropdown = PlayerSection:Dropdown({
     Title = "Target",
     Desc = "Pilih pemain target",
-    Values = playerNames,
+    Values = getPlayerList(),
     Callback = function(v)
         selectedTarget = Players:FindFirstChild(v)
     end,
 })
 
-CombatSection:Button({
+local function refreshPlayerList()
+    if killDropdown and killDropdown.Refresh then
+        killDropdown:Refresh(getPlayerList())
+    end
+end
+
+Players.PlayerAdded:Connect(refreshPlayerList)
+Players.PlayerRemoved:Connect(refreshPlayerList)
+
+PlayerSection:Button({
     Title = "Kill Player",
-    Desc = "Serang target (BreakJoints + Remote spam)",
+    Desc = "Serang target via RemoteEvent/Function spam",
     Callback = function()
         local target = selectedTarget
         if not target then
@@ -223,18 +231,56 @@ CombatSection:Button({
             return
         end
         local char = target.Character
-        if not char then return end
-        char:BreakJoints()
-        local hum = char:FindFirstChildOfClass("Humanoid")
-        if hum then hum.Health = 0 end
-        for _, v in ipairs(game:GetDescendants()) do
-            if v:IsA("RemoteEvent") then
-                pcall(v.FireServer, v, target, target.Character, 9999)
-            elseif v:IsA("RemoteFunction") then
-                pcall(v.InvokeServer, v, target, target.Character, 9999)
+        if char then
+            char:BreakJoints()
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum then hum.Health = 0 end
+        end
+        task.spawn(function()
+            for _, v in ipairs(game:GetDescendants()) do
+                if v:IsA("RemoteEvent") then
+                    pcall(v.FireServer, v, target, target.Character, 9999)
+                    pcall(v.FireServer, v, {Target = target, Damage = 9999})
+                    pcall(v.FireServer, v, target.Name, 9999)
+                elseif v:IsA("RemoteFunction") then
+                    pcall(v.InvokeServer, v, target, target.Character, 9999)
+                end
+            end
+        end)
+        WindUI:Notify({Title = "DarkZeuss", Content = "Kill executed on " .. target.Name, Duration = 2})
+    end,
+})
+
+PlayerSection:Button({
+    Title = "Kill All",
+    Desc = "Serang SEMUA pemain",
+    Callback = function()
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LP then
+                local char = p.Character
+                if char then
+                    char:BreakJoints()
+                    local hum = char:FindFirstChildOfClass("Humanoid")
+                    if hum then hum.Health = 0 end
+                end
             end
         end
-        WindUI:Notify({Title = "DarkZeuss", Content = "Kill executed on " .. target.Name, Duration = 2})
+        task.spawn(function()
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p ~= LP then
+                    for _, v in ipairs(game:GetDescendants()) do
+                        if v:IsA("RemoteEvent") then
+                            pcall(v.FireServer, v, p, p.Character, 9999)
+                            pcall(v.FireServer, v, {Target = p, Damage = 9999})
+                            pcall(v.FireServer, v, p.Name, 9999)
+                        elseif v:IsA("RemoteFunction") then
+                            pcall(v.InvokeServer, v, p, p.Character, 9999)
+                        end
+                    end
+                end
+            end
+        end)
+        WindUI:Notify({Title = "DarkZeuss", Content = "Kill All executed!", Duration = 2})
     end,
 })
 
