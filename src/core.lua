@@ -149,6 +149,87 @@ PlayerSection:Slider({
     end,
 })
 
+-- Fly
+local flyConn, flySpeed = nil, 50
+
+PlayerSection:Toggle({
+    Title = "Fly",
+    Desc = "Mode terbang (arah kamera)",
+    Callback = function(enabled)
+        if flyConn then flyConn:Disconnect() flyConn = nil end
+        local char = LP.Character
+        if not char then return end
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if not hrp then return end
+        if enabled then
+            flyConn = game:GetService("RunService").Heartbeat:Connect(function()
+                local c = LP.Character
+                if not c then return end
+                local r = c:FindFirstChild("HumanoidRootPart")
+                local h = c:FindFirstChildOfClass("Humanoid")
+                if not r or not h then return end
+                h.PlatformStand = true
+                local lv = workspace.CurrentCamera.CFrame.LookVector
+                r.Velocity = Vector3.new(lv.X * flySpeed, lv.Y * flySpeed, lv.Z * flySpeed)
+            end)
+        else
+            local h = char:FindFirstChildOfClass("Humanoid")
+            if h then h.PlatformStand = false end
+        end
+    end,
+})
+
+PlayerSection:Slider({
+    Title = "Fly Speed",
+    Desc = "Kecepatan terbang",
+    Step = 1,
+    Value = {
+        Min = 10,
+        Max = 200,
+        Default = 50,
+    },
+    Callback = function(value) flySpeed = value end,
+})
+
+-- Kill
+local CombatSection = MainTab:Section({
+    Title = "Combat",
+    Opened = true,
+})
+
+local selectedTarget
+
+CombatSection:PlayerDropdown({
+    Title = "Target",
+    Desc = "Pilih pemain target",
+    Callback = function(v) selectedTarget = v end,
+})
+
+CombatSection:Button({
+    Title = "Kill Player",
+    Desc = "Serang target (BreakJoints + Remote spam)",
+    Callback = function()
+        local target = selectedTarget
+        if not target then
+            WindUI:Notify({Title = "DarkZeuss", Content = "Pilih target dulu!", Duration = 2})
+            return
+        end
+        local char = target.Character
+        if not char then return end
+        char:BreakJoints()
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then hum.Health = 0 end
+        for _, v in ipairs(game:GetDescendants()) do
+            if v:IsA("RemoteEvent") then
+                pcall(v.FireServer, v, target, target.Character, 9999)
+            elseif v:IsA("RemoteFunction") then
+                pcall(v.InvokeServer, v, target, target.Character, 9999)
+            end
+        end
+        WindUI:Notify({Title = "DarkZeuss", Content = "Kill executed on " .. target.Name, Duration = 2})
+    end,
+})
+
 WindUI:Notify({
     Title = "DarkZeuss",
     Content = "Library berhasil dijalankan",
